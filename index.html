@@ -458,6 +458,21 @@ async function tbaFetch(path, cacheKey) {
   return data;
 }
 
+// ── Statbotics fetch with 5-min TTL cache ───────────────────────────────────
+async function statboticsFetch(teamNum, eventKey) {
+  const cacheKey = `sb_${eventKey}_${teamNum}`;
+  const cached   = ls.getJSON(cacheKey);
+  if (cached && cached.ts && (Date.now() - cached.ts) < 5 * 60 * 1000) {
+    return cached.data;
+  }
+  const resp = await fetch(`https://api.statbotics.io/v3/team_event/${teamNum}/${eventKey}`);
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`Statbotics error ${resp.status}`);
+  const data = await resp.json();
+  ls.setJSON(cacheKey, { ts: Date.now(), data });
+  return data;
+}
+
 // ── Event badge ──────────────────────────────────────────────────────────────
 async function refreshEventBadge() {
   const dot  = document.getElementById('event-dot');
@@ -519,7 +534,17 @@ async function scoutMatch() {
 
     const teamMap = Object.fromEntries(teams.map(t => [String(t.team_number), t.nickname]));
 
-    renderResults(match, coprs, teamMap, eventKey, teamNum, matchLabel);
+    // Fetch Statbotics EPA for all 6 teams (fails gracefully per team)
+    const allTeamNums = [
+      ...match.alliances.red.team_keys.map(k => k.replace('frc', '')),
+      ...match.alliances.blue.team_keys.map(k => k.replace('frc', '')),
+    ];
+    const epaResults = await Promise.all(
+      allTeamNums.map(t => statboticsFetch(t, eventKey).catch(() => null))
+    );
+    const epaMap = Object.fromEntries(allTeamNums.map((t, i) => [t, epaResults[i]]));
+
+    renderResults(match, coprs, teamMap, epaMap, eventKey, teamNum, matchLabel);
     showResults();
 
   } catch (e) {
@@ -537,7 +562,7 @@ function setMainStatus(msg, type) {
 }
 
 // ── Results rendering ────────────────────────────────────────────────────────
-function renderResults(match, coprs, teamMap, eventKey, ourTeamNum, matchLabel) {
+function renderResults(match, coprs, teamMap, epaMap, eventKey, ourTeamNum, matchLabel) {
   const redKeys  = match.alliances.red.team_keys.map(k => k.replace('frc', ''));
   const blueKeys = match.alliances.blue.team_keys.map(k => k.replace('frc', ''));
 
@@ -545,15 +570,21 @@ function renderResults(match, coprs, teamMap, eventKey, ourTeamNum, matchLabel) 
   const ourTeams = ourSide === 'red' ? redKeys : blueKeys;
   const oppTeams = ourSide === 'red' ? blueKeys : redKeys;
 
-  // Sort opponents by OPR desc (highest threat first)
-  const getOPR = t => coprs?.['OPR']?.[`frc${t}`] ?? 0;
-  oppTeams.sort((a, b) => getOPR(b) - getOPR(a));
+  // EPA helpers (Statbotics)
+  const getEPA   = t => epaMap[t]?.epa?.total_points?.mean  ?? null;
+  const getEPAsd = t => epaMap[t]?.epa?.total_points?.sd    ?? 15;
 
-  // Calc combined OPRs
-  const ourOPR = ourTeams.reduce((s, t) => s + getOPR(t), 0);
-  const oppOPR = oppTeams.reduce((s, t) => s + getOPR(t), 0);
-  const total  = ourOPR + oppOPR;
-  const ourWin = total > 0 ? Math.round((ourOPR / total) * 100) : 50;
+  // Sort opponents by EPA desc (highest threat first)
+  oppTeams.sort((a, b) => (getEPA(b) ?? 0) - (getEPA(a) ?? 0));
+
+  // Win probability via normal distribution on predicted score margin
+  const ourEPA = ourTeams.reduce((s, t) => s + (getEPA(t) ?? 0), 0);
+  const oppEPA = oppTeams.reduce((s, t) => s + (getEPA(t) ?? 0), 0);
+  const margin      = ourEPA - oppEPA;
+  const combinedVar = [...ourTeams, ...oppTeams].reduce((s, t) => s + Math.pow(getEPAsd(t), 2), 0);
+  const combinedSD  = Math.sqrt(combinedVar);
+  const z      = combinedSD > 0 ? margin / combinedSD : 0;
+  const ourWin = Math.min(99, Math.max(1, Math.round(50 + 50 * Math.tanh(z * 0.8))));
   const oppWin = 100 - ourWin;
 
   // Combined FUEL
@@ -584,6 +615,7 @@ function renderResults(match, coprs, teamMap, eventKey, ourTeamNum, matchLabel) 
     teams:      ourTeams,
     ourTeamNum,
     coprs,
+    epaMap,
     teamMap,
     fuel:       ourFuel,
     isOurs:     true,
@@ -601,6 +633,7 @@ function renderResults(match, coprs, teamMap, eventKey, ourTeamNum, matchLabel) 
     teams:      oppTeams,
     ourTeamNum,
     coprs,
+    epaMap,
     teamMap,
     fuel:       oppFuel,
     isOurs:     false,
@@ -609,7 +642,7 @@ function renderResults(match, coprs, teamMap, eventKey, ourTeamNum, matchLabel) 
 
 function renderAlliance({ headerId, titleId, summaryId, teamsId, winChipId,
                            color, label, winPct, teams, ourTeamNum,
-                           coprs, teamMap, fuel, isOurs }) {
+                           coprs, epaMap, teamMap, fuel, isOurs }) {
   document.getElementById(headerId).className  = `alliance-header ${color}`;
   document.getElementById(titleId).className   = `alliance-title ${color}`;
   document.getElementById(titleId).textContent = label;
@@ -640,20 +673,18 @@ function renderAlliance({ headerId, titleId, summaryId, teamsId, winChipId,
   const container = document.getElementById(teamsId);
   container.innerHTML = '';
 
-  const getOPR   = t => coprs?.['OPR']?.[`frc${t}`] ?? null;
+  const getEPA   = t => epaMap?.[t]?.epa?.total_points?.mean ?? null;
   const getAuto  = t => coprs?.['Hub Auto Fuel Count']?.[`frc${t}`] ?? null;
   const getFuel  = t => coprs?.['Hub Total Fuel Count']?.[`frc${t}`] ?? null;
   const getTower = t => coprs?.['endGameTowerPoints']?.[`frc${t}`] ?? null;
-  const getEnrg  = t => coprs?.['energizedAchieved']?.[`frc${t}`] ?? null;
 
   teams.forEach((teamNum, idx) => {
-    const isUs      = teamNum === ourTeamNum;
+    const isUs        = teamNum === ourTeamNum;
     const isTopThreat = !isOurs && idx === 0;
-    const opr   = getOPR(teamNum);
+    const epa   = getEPA(teamNum);
     const auto  = getAuto(teamNum);
     const fuel  = getFuel(teamNum);
     const tower = getTower(teamNum);
-    const enrg  = getEnrg(teamNum);
     const name  = teamMap[teamNum] ?? `Team ${teamNum}`;
 
     const card = document.createElement('div');
@@ -663,11 +694,11 @@ function renderAlliance({ headerId, titleId, summaryId, teamsId, winChipId,
     card.className = cardClass;
 
     // Header row
-    const numClass = isUs
-      ? `team-num us-${color}`
-      : 'team-num';
+    const numClass = isUs ? `team-num us-${color}` : 'team-num';
 
-    const oprChip = opr !== null ? `<span class="opr-chip ${oprClass(opr)}">${opr.toFixed(1)} OPR</span>` : '';
+    const epaChip = epa !== null
+      ? `<span class="opr-chip ${oprClass(epa)}">${epa.toFixed(1)} EPA</span>`
+      : '';
 
     // Badges
     let badges = '';
@@ -692,13 +723,15 @@ function renderAlliance({ headerId, titleId, summaryId, teamsId, winChipId,
     let insight = '';
     if (isTopThreat && fuel !== null) {
       insight = `<div class="insight">Primary scorer — ${Math.round(fuel)} FUEL/match. Deny cycles.</div>`;
+    } else if (isTopThreat && epa !== null) {
+      insight = `<div class="insight">Top threat — ${epa.toFixed(1)} EPA. Watch this robot.</div>`;
     }
 
     card.innerHTML = `
       <div class="team-header">
         <span class="${numClass}">#${teamNum}</span>
         <span class="team-name">${name}</span>
-        ${oprChip}
+        ${epaChip}
       </div>
       ${badges ? `<div class="badge-row">${badges}</div>` : ''}
       <div class="caps">
