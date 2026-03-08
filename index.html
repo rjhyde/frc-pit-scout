@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>FRC Pit Scout</title>
+<style>
+:root {
+  --bg:       #0f0f1a;
+  --surface:  #1a1a2e;
+  --surface2: #232340;
+  --border:   #2e2e50;
+  --text:     #e8e8f0;
+  --muted:    #8888aa;
+  --red:      #e05555;
+  --red-dim:  #3a1a1a;
+  --blue:     #4a7fd4;
+  --blue-dim: #1a2a3a;
+  --green:    #4caf72;
+  --amber:    #e0a040;
+  --purple:   #8b7fd4;
+  --radius:   10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* ── Nav bar ── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+.nav-title { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; }
+.nav-btn {
+  background: none; border: none; color: var(--muted);
+  font-size: 22px; cursor: pointer; padding: 4px 8px;
+  border-radius: 6px; line-height: 1;
+}
+.nav-btn:active { background: var(--border); }
+
+/* ── Screens ── */
+.screen { display: none; padding: 16px; padding-bottom: 32px; }
+.screen.active { display: block; }
+
+/* ── Settings ── */
+.settings-group { margin-bottom: 24px; }
+.settings-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px;
+}
+.settings-input {
+  width: 100%; background: var(--surface2);
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-size: 16px; padding: 12px 14px;
+  outline: none; appearance: none;
+}
+.settings-input:focus { border-color: var(--purple); }
+.settings-hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+/* ── Buttons ── */
+.btn {
+  display: block; width: 100%;
+  padding: 14px; border: none; border-radius: var(--radius);
+  font-size: 17px; font-weight: 700; cursor: pointer;
+  transition: opacity 0.15s; text-align: center;
+}
+.btn:active { opacity: 0.75; }
+.btn-primary { background: var(--purple); color: #fff; }
+.btn-scout-red  { background: var(--red);  color: #fff; font-size: 19px; padding: 18px; }
+.btn-scout-blue { background: var(--blue); color: #fff; font-size: 19px; padding: 18px; }
+.btn-scout-idle { background: var(--surface2); color: var(--purple); border: 2px solid var(--purple); font-size: 19px; padding: 16px; }
+.btn-sm {
+  display: inline-block; width: auto;
+  padding: 5px 11px; font-size: 12px; font-weight: 700;
+  border-radius: 6px; cursor: pointer; border: none;
+  text-decoration: none;
+}
+.btn-lovat { background: #2a2a4a; color: var(--purple); border: 1px solid var(--purple); }
+
+/* ── Main screen ── */
+.event-badge {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px;
+  margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+}
+.event-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.event-dot.warn { background: var(--amber); }
+.event-dot.err  { background: var(--red); }
+.event-text { font-size: 13px; color: var(--muted); }
+.event-text strong { color: var(--text); }
+
+.match-input-wrap { margin-bottom: 16px; }
+.match-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px; }
+.match-input {
+  width: 100%; background: var(--surface2);
+  border: 2px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-size: 42px; font-weight: 900;
+  padding: 14px 18px; outline: none; text-align: center;
+  -webkit-appearance: none; appearance: none;
+}
+.match-input:focus { border-color: var(--purple); }
+
+/* ── Status ── */
+.status {
+  font-size: 13px; padding: 10px 14px; border-radius: 8px;
+  margin-bottom: 14px; display: none;
+}
+.status.info    { background: #1a2040; color: #7ec8e3; display: block; }
+.status.success { background: #1a2e1a; color: var(--green); display: block; }
+.status.error   { background: #2e1a1a; color: var(--red); display: block; }
+.status.warn    { background: #2e2010; color: var(--amber); display: block; }
+
+/* ── Results ── */
+.alliance-block {
+  border-radius: var(--radius); overflow: hidden;
+  margin-bottom: 20px; border: 1.5px solid var(--border);
+}
+.alliance-header {
+  padding: 11px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.alliance-header.red  { background: var(--red-dim);  border-bottom: 1.5px solid var(--red); }
+.alliance-header.blue { background: var(--blue-dim); border-bottom: 1.5px solid var(--blue); }
+.alliance-title { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+.alliance-title.red  { color: var(--red); }
+.alliance-title.blue { color: var(--blue); }
+.win-chip {
+  font-size: 13px; font-weight: 800;
+  padding: 3px 10px; border-radius: 20px;
+}
+.win-chip.red  { background: var(--red);  color: #fff; }
+.win-chip.blue { background: var(--blue); color: #fff; }
+
+.alliance-summary {
+  padding: 8px 14px;
+  font-size: 12px; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.alliance-summary .rp-ok  { color: var(--green); font-weight: 700; }
+.alliance-summary .rp-no  { color: var(--amber); font-weight: 700; }
+
+/* ── Team card ── */
+.team-card {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.team-card:last-child { border-bottom: none; }
+.team-card.us-card { background: #1a1a28; }
+.team-card.threat-card { background: #201616; }
+
+.team-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 7px;
+}
+.team-num {
+  font-size: 19px; font-weight: 900; color: var(--text);
+  min-width: 50px;
+}
+.team-num.us-red  { color: var(--red); }
+.team-num.us-blue { color: var(--blue); }
+.team-name {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.opr-chip {
+  font-size: 12px; font-weight: 800; padding: 2px 8px;
+  border-radius: 12px; white-space: nowrap; flex-shrink: 0;
+}
+.opr-hi { background: #1a3a1a; color: var(--green); }
+.opr-md { background: #2a2a10; color: var(--amber); }
+.opr-lo { background: #1e1e2e; color: var(--muted); }
+
+.badge-row { display: flex; gap: 5px; margin-bottom: 7px; flex-wrap: wrap; }
+.badge {
+  font-size: 10px; font-weight: 800; padding: 2px 7px;
+  border-radius: 10px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.badge-us     { background: #3a1a3a; color: #d48fd4; }
+.badge-threat { background: #3a1010; color: var(--red); }
+.badge-med    { background: #2a2010; color: var(--amber); }
+.badge-low    { background: #1e1e1e; color: var(--muted); }
+
+/* ── Capability rows ── */
+.caps {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px; margin-bottom: 8px;
+}
+.cap {
+  background: var(--surface2); border-radius: 7px;
+  padding: 6px 8px;
+}
+.cap-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 2px; }
+.cap-val { font-size: 14px; font-weight: 800; color: var(--text); line-height: 1.2; }
+.cap-val.hi { color: var(--green); }
+.cap-val.lo { color: var(--muted); }
+.cap-val.best { color: var(--amber); }
+
+.team-footer { display: flex; justify-content: flex-end; }
+
+/* ── Key insight ── */
+.insight {
+  margin-top: 8px; padding: 6px 10px;
+  background: var(--surface2); border-radius: 7px;
+  font-size: 12px; color: var(--amber);
+  border-left: 3px solid var(--amber);
+}
+
+/* ── Match summary bar ── */
+.match-bar {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px;
+  margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.match-bar-left { font-size: 13px; }
+.match-bar-left strong { font-size: 17px; font-weight: 900; }
+.match-bar-right { font-size: 12px; color: var(--muted); text-align: right; }
+
+/* ── Loading spinner ── */
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid var(--border); border-top-color: var(--purple);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Section divider ── */
+.section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--muted);
+  margin: 20px 0 10px;
+}
+
+/* ── Empty / no data ── */
+.no-coprs {
+  font-size: 12px; color: var(--amber);
+  padding: 6px 10px; background: #2e2010;
+  border-radius: 7px; margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<div class="nav">
+  <span id="nav-back" class="nav-btn" onclick="showMain()" style="display:none">←</span>
+  <span class="nav-title" id="nav-title">FRC Pit Scout</span>
+  <button class="nav-btn" onclick="showSettings()" title="Settings">⚙</button>
+</div>
+
+<!-- ══════════════ SETTINGS SCREEN ══════════════ -->
+<div class="screen" id="screen-settings">
+  <div class="section-title">Setup</div>
+
+  <div class="settings-group">
+    <div class="settings-label">TBA API Key</div>
+    <input class="settings-input" id="cfg-tba-key" type="text" placeholder="Paste your TBA read API key" autocomplete="off" autocorrect="off" spellcheck="false">
+    <div class="settings-hint">Get a free key at thebluealliance.com/account</div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-label">Event Key</div>
+    <input class="settings-input" id="cfg-event-key" type="text" placeholder="e.g. 2026cahal" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+    <div class="settings-hint">Found in the TBA event page URL</div>
+  </div>
+
+  <div class="settings-group">
+    <div class="settings-label">Our Team Number</div>
+    <input class="settings-input" id="cfg-team-num" type="number" placeholder="e.g. 971" inputmode="numeric">
+  </div>
+
+  <button class="btn btn-primary" onclick="saveSettings()">Save &amp; Continue</button>
+</div>
+
+<!-- ══════════════ MAIN SCREEN ══════════════ -->
+<div class="screen" id="screen-main">
+  <div class="event-badge">
+    <div class="event-dot" id="event-dot"></div>
+    <div class="event-text" id="event-text">Loading event…</div>
+  </div>
+
+  <div class="match-input-wrap">
+    <div class="match-label">Qualification Match #</div>
+    <input class="match-input" id="match-num" type="number" inputmode="numeric" placeholder="37" min="1" max="200">
+  </div>
+
+  <div class="status" id="main-status"></div>
+
+  <button class="btn btn-scout-idle" id="scout-btn" onclick="scoutMatch()">⚡ Scout Match</button>
+</div>
+
+<!-- ══════════════ RESULTS SCREEN ══════════════ -->
+<div class="screen" id="screen-results">
+  <div class="match-bar">
+    <div class="match-bar-left">
+      <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px">Qual Match</div>
+      <strong id="res-match-num">—</strong>
+    </div>
+    <div class="match-bar-right" id="res-event-label">—</div>
+  </div>
+
+  <div id="coprs-warn" class="no-coprs" style="display:none">
+    ⚠ Component OPR data not yet available — stats will populate after matches are played
+  </div>
+
+  <!-- Our alliance block -->
+  <div class="alliance-block" id="our-block">
+    <div class="alliance-header" id="our-header">
+      <span class="alliance-title" id="our-title">Our Alliance</span>
+      <span class="win-chip" id="our-win-chip">—%</span>
+    </div>
+    <div class="alliance-summary" id="our-summary"></div>
+    <div id="our-teams"></div>
+  </div>
+
+  <!-- Opponents block -->
+  <div class="alliance-block" id="opp-block">
+    <div class="alliance-header" id="opp-header">
+      <span class="alliance-title" id="opp-title">Opponents</span>
+      <span class="win-chip" id="opp-win-chip">—%</span>
+    </div>
+    <div class="alliance-summary" id="opp-summary"></div>
+    <div id="opp-teams"></div>
+  </div>
+</div>
+
+<script>
+// ── Storage helpers ─────────────────────────────────────────────────────────
+const ls = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+  getJSON: k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+  setJSON: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+function getSetting(k) { return ls.get(`cfg_${k}`) || ''; }
+function setSetting(k, v) { ls.set(`cfg_${k}`, v); }
+
+// ── Screen routing ───────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${id}`).classList.add('active');
+  document.getElementById('nav-back').style.display = id === 'results' ? '' : 'none';
+  document.getElementById('nav-title').textContent =
+    id === 'settings' ? 'Settings' : id === 'results' ? 'Match Scout' : 'FRC Pit Scout';
+}
+
+function showSettings() {
+  document.getElementById('cfg-tba-key').value   = getSetting('tba_key');
+  document.getElementById('cfg-event-key').value = getSetting('event_key');
+  document.getElementById('cfg-team-num').value  = getSetting('team_num');
+  showScreen('settings');
+}
+
+function showMain()    { showScreen('main'); refreshEventBadge(); }
+function showResults() { showScreen('results'); }
+
+// ── Settings save ────────────────────────────────────────────────────────────
+function saveSettings() {
+  const key   = document.getElementById('cfg-tba-key').value.trim();
+  const event = document.getElementById('cfg-event-key').value.trim().toLowerCase();
+  const team  = document.getElementById('cfg-team-num').value.trim();
+  if (!key || !event || !team) { alert('Please fill in all fields.'); return; }
+  setSetting('tba_key', key);
+  setSetting('event_key', event);
+  setSetting('team_num', team);
+  // Clear cached data for new event
+  clearEventCache(event);
+  showMain();
+}
+
+function clearEventCache(eventKey) {
+  ['teams', 'matches', 'coprs'].forEach(k => {
+    ls.set(`etag_${eventKey}_${k}`, '');
+    ls.set(`data_${eventKey}_${k}`, '');
+  });
+}
+
+// ── TBA API fetch with ETag caching ─────────────────────────────────────────
+async function tbaFetch(path, cacheKey) {
+  const tbaKey = getSetting('tba_key');
+  if (!tbaKey) throw new Error('No TBA API key set. Open Settings.');
+
+  const etag   = ls.get(`etag_${cacheKey}`);
+  const cached = ls.get(`data_${cacheKey}`);
+
+  const headers = { 'X-TBA-Auth-Key': tbaKey };
+  if (etag && cached) headers['If-None-Match'] = etag;
+
+  const resp = await fetch(`https://www.thebluealliance.com/api/v3${path}`, { headers });
+
+  if (resp.status === 304 && cached) {
+    return JSON.parse(cached);   // not modified — use cache
+  }
+  if (resp.status === 401) throw new Error('Invalid TBA API key. Check Settings.');
+  if (resp.status === 404) throw new Error(`Not found: ${path}. Check your event key.`);
+  if (!resp.ok) throw new Error(`TBA API error ${resp.status}`);
+
+  const data    = await resp.json();
+  const newEtag = resp.headers.get('ETag');
+  if (newEtag) ls.set(`etag_${cacheKey}`, newEtag);
+  ls.set(`data_${cacheKey}`, JSON.stringify(data));
+  return data;
+}
+
+// ── Event badge ──────────────────────────────────────────────────────────────
+async function refreshEventBadge() {
+  const eventKey = getSetting('event_key');
+  const teamNum  = getSetting('team_num');
+  const dot  = document.getElementById('event-dot');
+  const text = document.getElementById('event-text');
+
+  if (!eventKey || !teamNum || !getSetting('tba_key')) {
+    dot.className = 'event-dot warn';
+    text.innerHTML = '<strong>Not configured</strong> — tap ⚙ to set up';
+    document.getElementById('scout-btn').className = 'btn btn-scout-idle';
+    return;
+  }
+
+  text.innerHTML = 'Loading event data…';
+  try {
+    const matches = await tbaFetch(`/event/${eventKey}/matches/simple`, `${eventKey}_matches`);
+    const played  = matches.filter(m => m.comp_level === 'qm' && m.alliances.red.score >= 0).length;
+    const total   = matches.filter(m => m.comp_level === 'qm').length;
+
+    dot.className = 'event-dot';
+    text.innerHTML = `<strong>${eventKey}</strong> &nbsp;·&nbsp; Team ${teamNum} &nbsp;·&nbsp; ${played}/${total} quals played`;
+    document.getElementById('scout-btn').className = 'btn btn-scout-idle';
+  } catch (e) {
+    dot.className = 'event-dot err';
+    text.innerHTML = `<strong>Error:</strong> ${e.message}`;
+  }
+}
+
+// ── Main scout action ────────────────────────────────────────────────────────
+async function scoutMatch() {
+  const matchNum = parseInt(document.getElementById('match-num').value);
+  if (!matchNum || matchNum < 1) { setMainStatus('Enter a match number first.', 'warn'); return; }
+
+  const eventKey = getSetting('event_key');
+  const teamNum  = getSetting('team_num');
+  if (!eventKey || !teamNum) { setMainStatus('Configure settings first.', 'warn'); return; }
+
+  const btn = document.getElementById('scout-btn');
+  btn.innerHTML = '<span class="spinner"></span> Fetching…';
+  btn.disabled = true;
+  setMainStatus('', '');
+
+  try {
+    // Fetch matches, teams, and COPRs in parallel
+    // COPRs always hit the server (ETag handles 304 efficiently)
+    const [matches, teams, coprs] = await Promise.all([
+      tbaFetch(`/event/${eventKey}/matches/simple`, `${eventKey}_matches`),
+      tbaFetch(`/event/${eventKey}/teams/simple`,   `${eventKey}_teams`),
+      tbaFetch(`/event/${eventKey}/coprs`,           `${eventKey}_coprs`).catch(() => null),
+    ]);
+
+    const match = matches.find(m => m.comp_level === 'qm' && m.match_number === matchNum);
+    if (!match) throw new Error(`Qual ${matchNum} not found in schedule. Check match number.`);
+
+    const teamMap = Object.fromEntries(teams.map(t => [String(t.team_number), t.nickname]));
+
+    renderResults(match, coprs, teamMap, eventKey, teamNum);
+    showResults();
+
+  } catch (e) {
+    setMainStatus(e.message, 'error');
+  } finally {
+    btn.innerHTML = '⚡ Scout Match';
+    btn.disabled = false;
+  }
+}
+
+function setMainStatus(msg, type) {
+  const el = document.getElementById('main-status');
+  el.textContent = msg;
+  el.className = `status ${type}`;
+}
+
+// ── Results rendering ────────────────────────────────────────────────────────
+function renderResults(match, coprs, teamMap, eventKey, ourTeamNum) {
+  const redKeys  = match.alliances.red.team_keys.map(k => k.replace('frc', ''));
+  const blueKeys = match.alliances.blue.team_keys.map(k => k.replace('frc', ''));
+
+  const ourSide  = redKeys.includes(ourTeamNum) ? 'red' : 'blue';
+  const ourTeams = ourSide === 'red' ? redKeys : blueKeys;
+  const oppTeams = ourSide === 'red' ? blueKeys : redKeys;
+
+  // Sort opponents by OPR desc (highest threat first)
+  const getOPR = t => coprs?.['OPR']?.[`frc${t}`] ?? 0;
+  oppTeams.sort((a, b) => getOPR(b) - getOPR(a));
+
+  // Calc combined OPRs
+  const ourOPR = ourTeams.reduce((s, t) => s + getOPR(t), 0);
+  const oppOPR = oppTeams.reduce((s, t) => s + getOPR(t), 0);
+  const total  = ourOPR + oppOPR;
+  const ourWin = total > 0 ? Math.round((ourOPR / total) * 100) : 50;
+  const oppWin = 100 - ourWin;
+
+  // Combined FUEL
+  const getFuel = t => coprs?.['Hub Total Fuel Count']?.[`frc${t}`] ?? null;
+  const ourFuel = ourTeams.reduce((s, t) => s + (getFuel(t) ?? 0), 0);
+  const oppFuel = oppTeams.reduce((s, t) => s + (getFuel(t) ?? 0), 0);
+  const hasCoprs = !!coprs && Object.keys(coprs).length > 0;
+
+  // Match bar
+  document.getElementById('res-match-num').textContent = `Qual ${match.match_number}`;
+  document.getElementById('res-event-label').textContent = eventKey;
+  document.getElementById('coprs-warn').style.display = hasCoprs ? 'none' : '';
+
+  // Our alliance
+  const ourColor = ourSide;
+  const oppColor = ourSide === 'red' ? 'blue' : 'red';
+
+  renderAlliance({
+    headerId:   'our-header',
+    titleId:    'our-title',
+    summaryId:  'our-summary',
+    teamsId:    'our-teams',
+    winChipId:  'our-win-chip',
+    color:      ourColor,
+    label:      `${ourColor === 'red' ? '🔴' : '🔵'} Our Alliance`,
+    winPct:     ourWin,
+    teams:      ourTeams,
+    ourTeamNum,
+    coprs,
+    teamMap,
+    fuel:       ourFuel,
+    isOurs:     true,
+  });
+
+  renderAlliance({
+    headerId:   'opp-header',
+    titleId:    'opp-title',
+    summaryId:  'opp-summary',
+    teamsId:    'opp-teams',
+    winChipId:  'opp-win-chip',
+    color:      oppColor,
+    label:      `${oppColor === 'red' ? '🔴' : '🔵'} Opponents`,
+    winPct:     oppWin,
+    teams:      oppTeams,
+    ourTeamNum,
+    coprs,
+    teamMap,
+    fuel:       oppFuel,
+    isOurs:     false,
+  });
+}
+
+function renderAlliance({ headerId, titleId, summaryId, teamsId, winChipId,
+                           color, label, winPct, teams, ourTeamNum,
+                           coprs, teamMap, fuel, isOurs }) {
+  document.getElementById(headerId).className  = `alliance-header ${color}`;
+  document.getElementById(titleId).className   = `alliance-title ${color}`;
+  document.getElementById(titleId).textContent = label;
+
+  const chip = document.getElementById(winChipId);
+  chip.className   = `win-chip ${color}`;
+  chip.textContent = `${winPct}%`;
+
+  // Summary line
+  const hasFuelData = coprs && Object.keys(coprs).length > 0;
+  let summary = '';
+  if (hasFuelData) {
+    const energized = fuel >= 100;
+    const supchgd   = fuel >= 360;
+    const rp1 = energized
+      ? `<span class="rp-ok">✓ Energized RP (~${Math.round(fuel)} FUEL)</span>`
+      : `<span class="rp-no">✗ Energized RP (~${Math.round(fuel)} FUEL, need 100)</span>`;
+    const rp2 = supchgd
+      ? ` &nbsp;·&nbsp; <span class="rp-ok">✓ Supercharged RP</span>`
+      : '';
+    summary = rp1 + rp2;
+  } else {
+    summary = 'OPR data loading — stats available after first matches';
+  }
+  document.getElementById(summaryId).innerHTML = summary;
+
+  // Team cards
+  const container = document.getElementById(teamsId);
+  container.innerHTML = '';
+
+  const getOPR   = t => coprs?.['OPR']?.[`frc${t}`] ?? null;
+  const getAuto  = t => coprs?.['Hub Auto Fuel Count']?.[`frc${t}`] ?? null;
+  const getFuel  = t => coprs?.['Hub Total Fuel Count']?.[`frc${t}`] ?? null;
+  const getTower = t => coprs?.['endGameTowerPoints']?.[`frc${t}`] ?? null;
+  const getEnrg  = t => coprs?.['energizedAchieved']?.[`frc${t}`] ?? null;
+
+  teams.forEach((teamNum, idx) => {
+    const isUs      = teamNum === ourTeamNum;
+    const isTopThreat = !isOurs && idx === 0;
+    const opr   = getOPR(teamNum);
+    const auto  = getAuto(teamNum);
+    const fuel  = getFuel(teamNum);
+    const tower = getTower(teamNum);
+    const enrg  = getEnrg(teamNum);
+    const name  = teamMap[teamNum] ?? `Team ${teamNum}`;
+
+    const card = document.createElement('div');
+    let cardClass = 'team-card';
+    if (isUs) cardClass += ' us-card';
+    else if (isTopThreat) cardClass += ' threat-card';
+    card.className = cardClass;
+
+    // Header row
+    const numClass = isUs
+      ? `team-num us-${color}`
+      : 'team-num';
+
+    const oprChip = opr !== null ? `<span class="opr-chip ${oprClass(opr)}">${opr.toFixed(1)} OPR</span>` : '';
+
+    // Badges
+    let badges = '';
+    if (isUs) badges += '<span class="badge badge-us">★ US</span>';
+    else if (!isOurs) {
+      if (idx === 0)      badges += '<span class="badge badge-threat">⚠ TOP THREAT</span>';
+      else if (idx === 1) badges += '<span class="badge badge-med">MED</span>';
+      else                badges += '<span class="badge badge-low">LOW</span>';
+    }
+
+    // Cap values
+    const autoVal  = auto  !== null ? `~${Math.round(auto)}⛽`  : '—';
+    const fuelVal  = fuel  !== null ? `~${Math.round(fuel)}⛽`  : '—';
+    const towerVal = inferRung(tower);
+
+    const autoClass  = auto  !== null && auto  > 15 ? 'cap-val best' : 'cap-val';
+    const fuelClass  = fuel  !== null && fuel  > 80 ? 'cap-val hi' : 'cap-val';
+    const towerClass = tower !== null && tower > 5  ? 'cap-val hi'
+                     : tower !== null && tower < 0  ? 'cap-val lo' : 'cap-val';
+
+    // Insight for top threat
+    let insight = '';
+    if (isTopThreat && fuel !== null) {
+      insight = `<div class="insight">Primary scorer — ${Math.round(fuel)} FUEL/match. Deny cycles.</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="team-header">
+        <span class="${numClass}">#${teamNum}</span>
+        <span class="team-name">${name}</span>
+        ${oprChip}
+      </div>
+      ${badges ? `<div class="badge-row">${badges}</div>` : ''}
+      <div class="caps">
+        <div class="cap">
+          <div class="cap-label">Auto (20s)</div>
+          <div class="${autoClass}">${autoVal}</div>
+        </div>
+        <div class="cap">
+          <div class="cap-label">FUEL/match</div>
+          <div class="${fuelClass}">${fuelVal}</div>
+        </div>
+        <div class="cap">
+          <div class="cap-label">Tower Rung</div>
+          <div class="${towerClass}">${towerVal}</div>
+        </div>
+      </div>
+      ${insight}
+      <div class="team-footer">
+        <a class="btn-sm btn-lovat" href="https://lovat.app" target="_blank" rel="noopener">Lovat ↗</a>
+      </div>`;
+
+    container.appendChild(card);
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function oprClass(opr) {
+  if (opr >= 60) return 'opr-hi';
+  if (opr >= 25) return 'opr-md';
+  return 'opr-lo';
+}
+
+function inferRung(pts) {
+  if (pts === null) return '—';
+  if (pts >= 25) return 'HIGH';
+  if (pts >= 14) return 'MID';
+  if (pts >= 6)  return 'LOW';
+  if (pts >= 1)  return 'LOW (rare)';
+  return '—';
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(function init() {
+  const hasConfig = getSetting('tba_key') && getSetting('event_key') && getSetting('team_num');
+  if (hasConfig) {
+    showMain();
+  } else {
+    showSettings();
+  }
+})();
+</script>
+</body>
+</html>
