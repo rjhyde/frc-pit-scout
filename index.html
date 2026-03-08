@@ -252,6 +252,45 @@ html, body {
   padding: 6px 10px; background: #2e2010;
   border-radius: 7px; margin-bottom: 10px;
 }
+
+/* ── Match type segmented control ── */
+.match-type-seg {
+  display: flex; margin-bottom: 16px;
+  border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden;
+}
+.match-type-seg button {
+  flex: 1; padding: 10px; border: none; background: var(--surface2);
+  color: var(--muted); font-size: 14px; font-weight: 700; cursor: pointer;
+  letter-spacing: 0.5px; transition: background 0.15s, color 0.15s;
+}
+.match-type-seg button.active { background: var(--purple); color: #fff; }
+.match-type-seg button:active  { opacity: 0.8; }
+
+/* ── Playoff selectors ── */
+.playoff-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-end; }
+.playoff-field { display: flex; flex-direction: column; }
+.playoff-field.grow { flex: 1; }
+.playoff-select {
+  background: var(--surface2); border: 1.5px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-size: 16px; padding: 12px 14px; outline: none;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238888aa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  padding-right: 36px;
+}
+.playoff-select:focus { border-color: var(--purple); }
+
+/* ── Game pill buttons ── */
+.game-pills { display: flex; gap: 8px; }
+.game-pill {
+  flex: 1; padding: 12px; border: 1.5px solid var(--border);
+  border-radius: var(--radius); background: var(--surface2);
+  color: var(--muted); font-size: 18px; font-weight: 800;
+  cursor: pointer; text-align: center; transition: all 0.15s;
+}
+.game-pill.active { border-color: var(--purple); background: var(--purple); color: #fff; }
+.game-pill:active { opacity: 0.75; }
 </style>
 </head>
 <body>
@@ -288,9 +327,49 @@ html, body {
     <div class="event-text" id="event-text">Loading event…</div>
   </div>
 
-  <div class="match-input-wrap">
+  <!-- Quals / Playoffs toggle -->
+  <div class="match-type-seg">
+    <button id="tab-quals"    class="active" onclick="setMatchType('quals')">QUALS</button>
+    <button id="tab-playoffs"              onclick="setMatchType('playoffs')">PLAYOFFS</button>
+  </div>
+
+  <!-- Quals input -->
+  <div id="qual-input" class="match-input-wrap">
     <div class="match-label">Qualification Match #</div>
     <input class="match-input" id="match-num" type="number" inputmode="numeric" placeholder="37" min="1" max="200">
+  </div>
+
+  <!-- Playoff input -->
+  <div id="playoff-input" style="display:none">
+    <div class="playoff-row">
+      <div class="playoff-field grow">
+        <div class="match-label">Bracket Match</div>
+        <select class="playoff-select" id="po-set">
+          <option value="1">Match 1</option>
+          <option value="2">Match 2</option>
+          <option value="3">Match 3</option>
+          <option value="4">Match 4</option>
+          <option value="5">Match 5</option>
+          <option value="6">Match 6</option>
+          <option value="7">Match 7</option>
+          <option value="8">Match 8</option>
+          <option value="9">Match 9</option>
+          <option value="10">Match 10</option>
+          <option value="11">Match 11</option>
+          <option value="12">Match 12</option>
+          <option value="13">Match 13</option>
+          <option value="f">Finals</option>
+        </select>
+      </div>
+      <div class="playoff-field">
+        <div class="match-label">Game</div>
+        <div class="game-pills">
+          <button class="game-pill active" id="game-1" onclick="selectGame(1)">1</button>
+          <button class="game-pill"        id="game-2" onclick="selectGame(2)">2</button>
+          <button class="game-pill"        id="game-3" onclick="selectGame(3)">3</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="status" id="main-status"></div>
@@ -302,7 +381,7 @@ html, body {
 <div class="screen" id="screen-results">
   <div class="match-bar">
     <div class="match-bar-left">
-      <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px">Qual Match</div>
+      <div style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px" id="res-match-label">Match</div>
       <strong id="res-match-num">—</strong>
     </div>
     <div class="match-bar-right" id="res-event-label">—</div>
@@ -365,6 +444,26 @@ function showSettings() {
 
 function showMain()    { showScreen('main'); refreshEventBadge(); }
 function showResults() { showScreen('results'); }
+
+// ── Match type toggle ─────────────────────────────────────────────────────────
+let currentMatchType = 'quals';
+let selectedGame = 1;
+
+function setMatchType(type) {
+  currentMatchType = type;
+  document.getElementById('tab-quals').classList.toggle('active', type === 'quals');
+  document.getElementById('tab-playoffs').classList.toggle('active', type === 'playoffs');
+  document.getElementById('qual-input').style.display    = type === 'quals'    ? '' : 'none';
+  document.getElementById('playoff-input').style.display = type === 'playoffs' ? '' : 'none';
+  setMainStatus('', '');
+}
+
+function selectGame(n) {
+  selectedGame = n;
+  [1, 2, 3].forEach(i => {
+    document.getElementById(`game-${i}`).classList.toggle('active', i === n);
+  });
+}
 
 // ── Settings save ────────────────────────────────────────────────────────────
 function saveSettings() {
@@ -442,12 +541,29 @@ async function refreshEventBadge() {
 
 // ── Main scout action ────────────────────────────────────────────────────────
 async function scoutMatch() {
-  const matchNum = parseInt(document.getElementById('match-num').value);
-  if (!matchNum || matchNum < 1) { setMainStatus('Enter a match number first.', 'warn'); return; }
-
   const eventKey = getSetting('event_key');
   const teamNum  = getSetting('team_num');
   if (!eventKey || !teamNum) { setMainStatus('Configure settings first.', 'warn'); return; }
+
+  // Build match predicate and label depending on mode
+  let matchPredicate, matchLabel;
+  if (currentMatchType === 'quals') {
+    const matchNum = parseInt(document.getElementById('match-num').value);
+    if (!matchNum || matchNum < 1) { setMainStatus('Enter a match number first.', 'warn'); return; }
+    matchPredicate = m => m.comp_level === 'qm' && m.match_number === matchNum;
+    matchLabel = `Qual ${matchNum}`;
+  } else {
+    const poSet  = document.getElementById('po-set').value;
+    const isFinals = poSet === 'f';
+    const setNum   = isFinals ? 1 : parseInt(poSet);
+    matchPredicate = m =>
+      m.comp_level === (isFinals ? 'f' : 'sf') &&
+      m.set_number  === setNum &&
+      m.match_number === selectedGame;
+    matchLabel = isFinals
+      ? `Finals · Game ${selectedGame}`
+      : `Bracket Match ${poSet} · Game ${selectedGame}`;
+  }
 
   const btn = document.getElementById('scout-btn');
   btn.innerHTML = '<span class="spinner"></span> Fetching…';
@@ -455,20 +571,18 @@ async function scoutMatch() {
   setMainStatus('', '');
 
   try {
-    // Fetch matches, teams, and COPRs in parallel
-    // COPRs always hit the server (ETag handles 304 efficiently)
     const [matches, teams, coprs] = await Promise.all([
       tbaFetch(`/event/${eventKey}/matches/simple`, `${eventKey}_matches`),
       tbaFetch(`/event/${eventKey}/teams/simple`,   `${eventKey}_teams`),
       tbaFetch(`/event/${eventKey}/coprs`,           `${eventKey}_coprs`).catch(() => null),
     ]);
 
-    const match = matches.find(m => m.comp_level === 'qm' && m.match_number === matchNum);
-    if (!match) throw new Error(`Qual ${matchNum} not found in schedule. Check match number.`);
+    const match = matches.find(matchPredicate);
+    if (!match) throw new Error(`${matchLabel} not found — schedule may not be posted yet.`);
 
     const teamMap = Object.fromEntries(teams.map(t => [String(t.team_number), t.nickname]));
 
-    renderResults(match, coprs, teamMap, eventKey, teamNum);
+    renderResults(match, coprs, teamMap, eventKey, teamNum, matchLabel);
     showResults();
 
   } catch (e) {
@@ -486,7 +600,7 @@ function setMainStatus(msg, type) {
 }
 
 // ── Results rendering ────────────────────────────────────────────────────────
-function renderResults(match, coprs, teamMap, eventKey, ourTeamNum) {
+function renderResults(match, coprs, teamMap, eventKey, ourTeamNum, matchLabel) {
   const redKeys  = match.alliances.red.team_keys.map(k => k.replace('frc', ''));
   const blueKeys = match.alliances.blue.team_keys.map(k => k.replace('frc', ''));
 
@@ -512,7 +626,8 @@ function renderResults(match, coprs, teamMap, eventKey, ourTeamNum) {
   const hasCoprs = !!coprs && Object.keys(coprs).length > 0;
 
   // Match bar
-  document.getElementById('res-match-num').textContent = `Qual ${match.match_number}`;
+  document.getElementById('res-match-label').textContent = currentMatchType === 'quals' ? 'Qual Match' : 'Playoff';
+  document.getElementById('res-match-num').textContent   = matchLabel;
   document.getElementById('res-event-label').textContent = eventKey;
   document.getElementById('coprs-warn').style.display = hasCoprs ? 'none' : '';
 
