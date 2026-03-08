@@ -268,12 +268,6 @@ html, body {
   <div class="section-title">Setup</div>
 
   <div class="settings-group">
-    <div class="settings-label">TBA API Key</div>
-    <input class="settings-input" id="cfg-tba-key" type="text" placeholder="Paste your TBA read API key" autocomplete="off" autocorrect="off" spellcheck="false">
-    <div class="settings-hint">Get a free key at thebluealliance.com/account</div>
-  </div>
-
-  <div class="settings-group">
     <div class="settings-label">Event Key</div>
     <input class="settings-input" id="cfg-event-key" type="text" placeholder="e.g. 2026cahal" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
     <div class="settings-hint">Found in the TBA event page URL</div>
@@ -340,6 +334,9 @@ html, body {
 </div>
 
 <script>
+// ── TBA API key (hard-coded) ─────────────────────────────────────────────────
+const TBA_KEY = 'Fl4sWt3fcS8VN9Z94630IYQF6hfqOCpXY1IJonf0ldsBMKrih5CY0tUfrsH4G1SX';
+
 // ── Storage helpers ─────────────────────────────────────────────────────────
 const ls = {
   get: k => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -361,7 +358,6 @@ function showScreen(id) {
 }
 
 function showSettings() {
-  document.getElementById('cfg-tba-key').value   = getSetting('tba_key');
   document.getElementById('cfg-event-key').value = getSetting('event_key');
   document.getElementById('cfg-team-num').value  = getSetting('team_num');
   showScreen('settings');
@@ -372,11 +368,9 @@ function showResults() { showScreen('results'); }
 
 // ── Settings save ────────────────────────────────────────────────────────────
 function saveSettings() {
-  const key   = document.getElementById('cfg-tba-key').value.trim();
   const event = document.getElementById('cfg-event-key').value.trim().toLowerCase();
   const team  = document.getElementById('cfg-team-num').value.trim();
-  if (!key || !event || !team) { alert('Please fill in all fields.'); return; }
-  setSetting('tba_key', key);
+  if (!event || !team) { alert('Please fill in all fields.'); return; }
   setSetting('event_key', event);
   setSetting('team_num', team);
   // Clear cached data for new event
@@ -393,8 +387,7 @@ function clearEventCache(eventKey) {
 
 // ── TBA API fetch with ETag caching ─────────────────────────────────────────
 async function tbaFetch(path, cacheKey) {
-  const tbaKey = getSetting('tba_key');
-  if (!tbaKey) throw new Error('No TBA API key set. Open Settings.');
+  const tbaKey = TBA_KEY;
 
   const etag   = ls.get(`etag_${cacheKey}`);
   const cached = ls.get(`data_${cacheKey}`);
@@ -407,7 +400,7 @@ async function tbaFetch(path, cacheKey) {
   if (resp.status === 304 && cached) {
     return JSON.parse(cached);   // not modified — use cache
   }
-  if (resp.status === 401) throw new Error('Invalid TBA API key. Check Settings.');
+  if (resp.status === 401) throw new Error('TBA API key rejected (401). Contact team admin.');
   if (resp.status === 404) throw new Error(`Not found: ${path}. Check your event key.`);
   if (!resp.ok) throw new Error(`TBA API error ${resp.status}`);
 
@@ -425,7 +418,7 @@ async function refreshEventBadge() {
   const dot  = document.getElementById('event-dot');
   const text = document.getElementById('event-text');
 
-  if (!eventKey || !teamNum || !getSetting('tba_key')) {
+  if (!eventKey || !teamNum) {
     dot.className = 'event-dot warn';
     text.innerHTML = '<strong>Not configured</strong> — tap ⚙ to set up';
     document.getElementById('scout-btn').className = 'btn btn-scout-idle';
@@ -697,7 +690,7 @@ function inferRung(pts) {
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (function init() {
-  const hasConfig = getSetting('tba_key') && getSetting('event_key') && getSetting('team_num');
+  const hasConfig = getSetting('event_key') && getSetting('team_num');
   if (hasConfig) {
     showMain();
   } else {
