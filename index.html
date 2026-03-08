@@ -56,21 +56,6 @@ html, body {
 .screen { display: none; padding: 16px; padding-bottom: 32px; }
 .screen.active { display: block; }
 
-/* ── Settings ── */
-.settings-group { margin-bottom: 24px; }
-.settings-label {
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px;
-}
-.settings-input {
-  width: 100%; background: var(--surface2);
-  border: 1.5px solid var(--border); border-radius: var(--radius);
-  color: var(--text); font-size: 16px; padding: 12px 14px;
-  outline: none; appearance: none;
-}
-.settings-input:focus { border-color: var(--purple); }
-.settings-hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
-
 /* ── Buttons ── */
 .btn {
   display: block; width: 100%;
@@ -299,25 +284,7 @@ html, body {
 <div class="nav">
   <span id="nav-back" class="nav-btn" onclick="showMain()" style="display:none">←</span>
   <span class="nav-title" id="nav-title">FRC Pit Scout</span>
-  <button class="nav-btn" onclick="showSettings()" title="Settings">⚙</button>
-</div>
-
-<!-- ══════════════ SETTINGS SCREEN ══════════════ -->
-<div class="screen" id="screen-settings">
-  <div class="section-title">Setup</div>
-
-  <div class="settings-group">
-    <div class="settings-label">Event Key</div>
-    <input class="settings-input" id="cfg-event-key" type="text" placeholder="e.g. 2026cahal" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
-    <div class="settings-hint">Found in the TBA event page URL</div>
-  </div>
-
-  <div class="settings-group">
-    <div class="settings-label">Our Team Number</div>
-    <input class="settings-input" id="cfg-team-num" type="number" placeholder="e.g. 971" inputmode="numeric">
-  </div>
-
-  <button class="btn btn-primary" onclick="saveSettings()">Save &amp; Continue</button>
+  <span style="width:38px"></span><!-- spacer to keep title centered -->
 </div>
 
 <!-- ══════════════ MAIN SCREEN ══════════════ -->
@@ -413,8 +380,10 @@ html, body {
 </div>
 
 <script>
-// ── TBA API key (hard-coded) ─────────────────────────────────────────────────
-const TBA_KEY = 'Fl4sWt3fcS8VN9Z94630IYQF6hfqOCpXY1IJonf0ldsBMKrih5CY0tUfrsH4G1SX';
+// ── Hard-coded config ────────────────────────────────────────────────────────
+const TBA_KEY   = 'Fl4sWt3fcS8VN9Z94630IYQF6hfqOCpXY1IJonf0ldsBMKrih5CY0tUfrsH4G1SX';
+const EVENT_KEY = '2026cahal';
+const TEAM_NUM  = '971';
 
 // ── Storage helpers ─────────────────────────────────────────────────────────
 const ls = {
@@ -424,22 +393,13 @@ const ls = {
   setJSON: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
-function getSetting(k) { return ls.get(`cfg_${k}`) || ''; }
-function setSetting(k, v) { ls.set(`cfg_${k}`, v); }
-
 // ── Screen routing ───────────────────────────────────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(`screen-${id}`).classList.add('active');
   document.getElementById('nav-back').style.display = id === 'results' ? '' : 'none';
   document.getElementById('nav-title').textContent =
-    id === 'settings' ? 'Settings' : id === 'results' ? 'Match Scout' : 'FRC Pit Scout';
-}
-
-function showSettings() {
-  document.getElementById('cfg-event-key').value = getSetting('event_key');
-  document.getElementById('cfg-team-num').value  = getSetting('team_num');
-  showScreen('settings');
+    id === 'results' ? 'Match Scout' : 'FRC Pit Scout';
 }
 
 function showMain()    { showScreen('main'); refreshEventBadge(); }
@@ -465,22 +425,10 @@ function selectGame(n) {
   });
 }
 
-// ── Settings save ────────────────────────────────────────────────────────────
-function saveSettings() {
-  const event = document.getElementById('cfg-event-key').value.trim().toLowerCase();
-  const team  = document.getElementById('cfg-team-num').value.trim();
-  if (!event || !team) { alert('Please fill in all fields.'); return; }
-  setSetting('event_key', event);
-  setSetting('team_num', team);
-  // Clear cached data for new event
-  clearEventCache(event);
-  showMain();
-}
-
-function clearEventCache(eventKey) {
+function clearEventCache() {
   ['teams', 'matches', 'coprs'].forEach(k => {
-    ls.set(`etag_${eventKey}_${k}`, '');
-    ls.set(`data_${eventKey}_${k}`, '');
+    ls.set(`etag_${EVENT_KEY}_${k}`, '');
+    ls.set(`data_${EVENT_KEY}_${k}`, '');
   });
 }
 
@@ -512,27 +460,17 @@ async function tbaFetch(path, cacheKey) {
 
 // ── Event badge ──────────────────────────────────────────────────────────────
 async function refreshEventBadge() {
-  const eventKey = getSetting('event_key');
-  const teamNum  = getSetting('team_num');
   const dot  = document.getElementById('event-dot');
   const text = document.getElementById('event-text');
 
-  if (!eventKey || !teamNum) {
-    dot.className = 'event-dot warn';
-    text.innerHTML = '<strong>Not configured</strong> — tap ⚙ to set up';
-    document.getElementById('scout-btn').className = 'btn btn-scout-idle';
-    return;
-  }
-
   text.innerHTML = 'Loading event data…';
   try {
-    const matches = await tbaFetch(`/event/${eventKey}/matches/simple`, `${eventKey}_matches`);
+    const matches = await tbaFetch(`/event/${EVENT_KEY}/matches/simple`, `${EVENT_KEY}_matches`);
     const played  = matches.filter(m => m.comp_level === 'qm' && m.alliances.red.score >= 0).length;
     const total   = matches.filter(m => m.comp_level === 'qm').length;
 
     dot.className = 'event-dot';
-    text.innerHTML = `<strong>${eventKey}</strong> &nbsp;·&nbsp; Team ${teamNum} &nbsp;·&nbsp; ${played}/${total} quals played`;
-    document.getElementById('scout-btn').className = 'btn btn-scout-idle';
+    text.innerHTML = `<strong>${EVENT_KEY}</strong> &nbsp;·&nbsp; Team ${TEAM_NUM} &nbsp;·&nbsp; ${played}/${total} quals played`;
   } catch (e) {
     dot.className = 'event-dot err';
     text.innerHTML = `<strong>Error:</strong> ${e.message}`;
@@ -541,9 +479,8 @@ async function refreshEventBadge() {
 
 // ── Main scout action ────────────────────────────────────────────────────────
 async function scoutMatch() {
-  const eventKey = getSetting('event_key');
-  const teamNum  = getSetting('team_num');
-  if (!eventKey || !teamNum) { setMainStatus('Configure settings first.', 'warn'); return; }
+  const eventKey = EVENT_KEY;
+  const teamNum  = TEAM_NUM;
 
   // Build match predicate and label depending on mode
   let matchPredicate, matchLabel;
@@ -804,14 +741,7 @@ function inferRung(pts) {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-(function init() {
-  const hasConfig = getSetting('event_key') && getSetting('team_num');
-  if (hasConfig) {
-    showMain();
-  } else {
-    showSettings();
-  }
-})();
+showMain();
 </script>
 </body>
 </html>
